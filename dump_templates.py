@@ -8,6 +8,7 @@ calc_fnc_list = ['','min','avg','','max','','','all','','']
 graphtype_list = ['Normal', 'Stacked', 'Pie', 'Exploded']
 value_type_list = ['Numeric (float)','Character','Log','Numeric (unsigned)','Text']
 length_dict = {'macro_name':0, 'item_name':0, 'item_key':0, 'item_type':0, 'trigger_desc':0, 'trigger_expr':0, 'graph_name':0}
+trigger_severity_list = ['Not classified', 'Information', 'Warning', 'Average', 'High', 'Disaster']
 #########################
 
 def parse_args_and_connect_to_zabbix(args):
@@ -104,7 +105,6 @@ def main(z,output_file):
 		for macro in macros:
 			f.write(macro['macro']+tabs(length_dict,macro,'=>','macro_name','macro')+macro['value'] + '\n')
 
-		f.write('#####\nITEMS\n#####\n')
 		items = sorted(z.item.get(hostids=hostid), key=lambda x: x['name'].lower()) # Order items by name
 		for item in items:
 			if item['status'] == '0':
@@ -116,7 +116,9 @@ def main(z,output_file):
 		length_dict['item_name'] = calc_max_len_from_1dray(items,'name')
 		length_dict['item_key'] = calc_max_len_from_1dray(items,'key_')
 		length_dict['item_type'] = calc_max_len_from_1dray(items,'value_type')
-
+		f.write('#####\nITEMS' + tabs(length_dict,{'item_name': 'items'},'|','item_name','item_name') + 'Key' +\
+				tabs(length_dict, {'item_key': 'key'}, '|', 'item_key', 'item_key') + 'Type' + \
+				tabs(length_dict, {'item_type': 'type'}, '|', 'item_type', 'item_type') + 'Interval(s)|  History(days)\n#####\n')
 		for item in items:
 			if item['status'] == '0':
 				f.write((item['name'] + tabs(length_dict,item,'|','item_name','name') \
@@ -135,21 +137,28 @@ def main(z,output_file):
 		length_dict['item_name'] = calc_max_len_from_1dray(item_prototypes,'name')
 		length_dict['item_key'] = calc_max_len_from_1dray(item_prototypes,'key_')
 		length_dict['item_type'] = calc_max_len_from_1dray(item_prototypes,'value_type')
-
+		f.write('###############\nITEM_PROTOTYPES' + tabs(length_dict, {'item_name': 'item_prototypes'}, '|', 'item_name', 'item_name') + 'Key' + \
+				tabs(length_dict, {'item_key': 'key'}, '|', 'item_key', 'item_key') + 'Type' + \
+				tabs(length_dict, {'item_type': 'type'}, '|', 'item_type',
+					 'item_type') + 'Interval(s)|  History(days)\n###############\n')
 		for item_prototype in item_prototypes:
 			if item_prototype['status'] == '0':
 				f.write((item_prototype['name'] + tabs(length_dict,item_prototype,'|','item_name','name') + item_prototype['key_'] \
 						 + tabs(length_dict,item_prototype,'|','item_key','key_') + item_prototype['value_type']\
 						 + tabs(length_dict,item_prototype,'|','item_type','value_type') + item_prototype['delay']\
 						 + tab + item_prototype['history'] + '\n').encode('utf-8'))
-		f.write('########\nTRIGGERS\n########\n')
+
 		triggers = sorted(z.trigger.get(hostids=hostid,selectFunctions='extend'),key=lambda x: x['priority']+x['description']) # Order triggers by priority + description
 		for trigger in triggers:
 			if trigger['status'] == '0':
 				trigger['expression'] = calculate_expression(trigger, items)
+				trigger['priority'] = trigger_severity_list[int(trigger['priority'])]
 
 		length_dict['trigger_desc'] = calc_max_len_from_1dray(triggers,'description')
 		length_dict['trigger_expr'] = calc_max_len_from_1dray(triggers,'expression')
+
+		f.write('########\nTRIGGERS' + tabs(length_dict, {'description': 'triggers'}, '|', 'trigger_desc', 'description') + 'Expression' + \
+				tabs(length_dict, {'expression': 'expression'}, '|', 'trigger_expr', 'expression') + 'Severity\n########\n')
 
 		for trigger in triggers:
 			if trigger['status'] == '0':
@@ -160,9 +169,13 @@ def main(z,output_file):
 		for trigger_prototype in trigger_prototypes:
 			if trigger_prototype['status'] == '0':
 				trigger_prototype['expression'] = calculate_expression(trigger_prototype, item_prototypes)
+				trigger_prototype['priority'] = trigger_severity_list[int(trigger_prototype['priority'])]
 
 		length_dict['trigger_desc'] = calc_max_len_from_1dray(trigger_prototypes,'description')
 		length_dict['trigger_expr'] = calc_max_len_from_1dray(trigger_prototypes,'expression')
+
+		f.write('##################\nTRIGGER_PROTOTYPES' + tabs(length_dict, {'description': 'trigger_prototypes'}, '|', 'trigger_desc', 'description') + 'Expression' + \
+				tabs(length_dict, {'expression': 'expression'}, '|', 'trigger_expr', 'expression') + 'Severity\n##################\n')
 
 		for trigger_prototype in trigger_prototypes:
 			if trigger_prototype['status'] == '0':
@@ -211,7 +224,7 @@ def main(z,output_file):
 			for graph_prototype_item in graph_prototype_items:
 					f.write((graph_prototype_item['name'] + tabs(length_dict,graph_prototype_item,'|','graph_name','name') + graph_prototype_item['calc_fnc'] + '\n').encode('utf-8'))
 			f.write('###################\n')
-		time.sleep(5) #Adjustable delay to not overhead your database
+		time.sleep(1) #Adjustable delay to not overhead your database
 	f.close()
 
 if __name__ == "__main__":
